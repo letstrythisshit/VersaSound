@@ -1,0 +1,245 @@
+# VersaSound Training Configuration
+
+# Global training settings
+experiment_name: "versasound_v1"
+seed: 42
+output_dir: "./outputs"
+
+# Hardware
+device: "cuda"
+precision: "fp16"  # fp32, fp16, bf16
+num_workers: 4
+pin_memory: true
+
+# Distributed training
+distributed:
+  enabled: false
+  world_size: 1
+  backend: "nccl"  # nccl, gloo, mpi
+  find_unused_parameters: false
+
+# Optimization
+optimizer:
+  type: "adamw"
+  learning_rate: 1e-4
+  weight_decay: 0.01
+  betas: [0.9, 0.999]
+  eps: 1e-8
+
+scheduler:
+  type: "cosine"  # cosine, linear, constant
+  warmup_steps: 1000
+  min_lr: 1e-6
+
+gradient:
+  clip_norm: 1.0
+  accumulation_steps: 1
+
+# Training loop
+training:
+  batch_size: 8
+  epochs: 50
+  steps_per_epoch: null  # null = full dataset
+  max_steps: null  # null = unlimited
+
+# Validation
+validation:
+  val_every: 1000
+  val_samples: 100
+  save_val_outputs: true
+  metrics:
+    - "alignment_error"
+    - "audio_quality"
+    - "perceptual_similarity"
+
+# Checkpointing
+checkpointing:
+  checkpoint_dir: "./checkpoints"
+  save_every: 5000  # steps
+  keep_last_n: 3
+  save_best: true
+  best_metric: "alignment_error"  # lower is better
+  resume_from: null
+
+# Logging
+logging:
+  log_dir: "./logs"
+  log_every: 100  # steps
+  log_gradients: false
+  log_model_architecture: true
+
+  wandb:
+    enabled: false
+    project: "versasound"
+    entity: null
+    name: null  # auto-generated if null
+    tags: []
+    notes: ""
+
+# Stage-specific configurations
+stages:
+  visual:
+    description: "Train visual encoder"
+    epochs: 20
+    learning_rate: 1e-4
+    batch_size: 16
+    freeze_backbone: true
+
+    model:
+      backbone_name: "videomae_base"
+      output_dim: 768
+      num_temporal_layers: 4
+
+    loss_weights:
+      feature_reconstruction: 1.0
+      temporal_consistency: 0.5
+      contrastive: 0.3
+
+  audio:
+    description: "Train audio generator"
+    epochs: 30
+    learning_rate: 5e-5
+    batch_size: 8
+    freeze_audio_model: true
+    use_lora: false
+    lora_rank: 16
+
+    model:
+      audio_model_name: "audioldm2"
+      adapter_layers: 4
+      visual_dim: 768
+
+    loss_weights:
+      reconstruction: 1.0
+      perceptual: 0.5
+      spectral: 0.3
+      temporal: 0.8
+
+  end2end:
+    description: "End-to-end fine-tuning"
+    epochs: 10
+    learning_rate: 1e-5
+    batch_size: 4
+    unfreeze_after: 5  # epochs
+
+    loss_weights:
+      reconstruction: 1.0
+      perceptual: 0.5
+      spectral: 0.3
+      temporal: 1.0
+      alignment: 0.8
+
+# Loss configuration
+losses:
+  reconstruction:
+    type: "mse"  # mse, l1
+    weight: 1.0
+
+  perceptual:
+    type: "clap"  # clap, panns
+    model: "laion/clap-htsat-unfused"
+    weight: 0.5
+    freeze_encoder: true
+
+  spectral:
+    type: "multi_scale"
+    scales: [512, 1024, 2048]
+    n_mels: 128
+    weight: 0.3
+
+  temporal:
+    type: "alignment"
+    method: "dtw"  # dtw, cross_correlation
+    weight: 0.8
+
+  contrastive:
+    type: "infonce"
+    temperature: 0.07
+    weight: 0.3
+
+# Data augmentation
+augmentation:
+  video:
+    enabled: true
+    random_crop: 0.1
+    random_flip: 0.5
+    color_jitter:
+      brightness: 0.2
+      contrast: 0.2
+      saturation: 0.2
+      hue: 0.1
+    temporal_jitter: 0.05
+    random_rotation: 0.0
+
+  audio:
+    enabled: true
+    time_stretch: 0.1
+    pitch_shift: 0.05
+    add_noise:
+      probability: 0.3
+      snr_db: [20, 40]
+    volume_jitter: 0.1
+    random_eq:
+      probability: 0.2
+
+# Model architecture
+model:
+  visual_encoder:
+    backbone: "videomae_base"
+    pretrained: true
+    freeze_backbone: true
+    output_dim: 768
+
+    motion_encoder:
+      type: "learned"
+      hidden_dim: 256
+      num_layers: 3
+
+    audio_cue_extractor:
+      hidden_dim: 512
+      num_layers: 3
+
+    temporal_transformer:
+      num_layers: 4
+      num_heads: 12
+      dim_feedforward: 3072
+      dropout: 0.1
+
+  audio_generator:
+    base_model: "audioldm2"
+    pretrained: true
+    freeze_base: true
+
+    adapter:
+      num_layers: 4
+      hidden_dim: 768
+      num_heads: 8
+      dropout: 0.1
+
+    temporal_controller:
+      hidden_dim: 256
+      num_layers: 3
+      output_features:
+        - "intensity"
+        - "events"
+        - "rhythm"
+
+  temporal_aligner:
+    hidden_dim: 512
+    num_layers: 4
+    alignment_method: "learned"  # learned, dtw
+
+    event_detector:
+      threshold: 0.5
+      min_duration: 0.05
+
+    warping:
+      enabled: true
+      max_ratio: 0.1
+
+# Memory optimization
+memory:
+  gradient_checkpointing: true
+  mixed_precision: true
+  channels_last: false
+  empty_cache_every: 100  # steps
