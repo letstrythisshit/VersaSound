@@ -345,7 +345,7 @@ class UniversalVisualEncoder(nn.Module):
 
         with torch.set_grad_enabled(not self.freeze_backbone):
             if 'videomae' in self.backbone_name.lower():
-                # VideoMAE expects [B, C, T, H, W] per sample
+                # VideoMAE expects [B, T, C, H, W] (batch, num_frames, num_channels, height, width)
                 # Process in temporal chunks
                 features = []
                 chunk_size = min(16, T)  # Process 16 frames at a time
@@ -354,8 +354,9 @@ class UniversalVisualEncoder(nn.Module):
                     end = min(i + chunk_size, T)
                     chunk = video[:, i:end]  # [B, chunk_T, C, H, W]
 
-                    # Reshape for VideoMAE
-                    chunk = chunk.permute(0, 2, 1, 3, 4)  # [B, C, chunk_T, H, W]
+                    # VideoMAE expects [B, T, C, H, W] - already in correct format
+                    # NO permutation needed!
+                    logger.debug(f"Passing chunk to VideoMAE with shape: {chunk.shape}, dtype: {chunk.dtype}, range: [{chunk.min():.3f}, {chunk.max():.3f}]")
 
                     outputs = self.backbone(chunk, output_hidden_states=True)
                     # Get CLS token or mean pool
