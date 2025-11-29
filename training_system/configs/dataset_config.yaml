@@ -1,0 +1,187 @@
+# Dataset Configuration for VersaSound Training
+
+# Training datasets
+train:
+  # Dataset mixing weights (must sum to 1.0)
+  datasets:
+    - type: "vggsound"
+      path: "/data/vggsound"
+      split: "train"
+      weight: 0.3
+      enabled: false  # Set to true when data is available
+
+    - type: "audioset"
+      path: "/data/audioset"
+      split: "train"
+      weight: 0.3
+      enabled: false
+
+    - type: "greatest_hits"
+      path: "/data/greatest_hits"
+      split: "train"
+      weight: 0.2
+      enabled: false
+
+    - type: "custom"
+      name: "custom_dataset_1"
+      index_path: "/data/custom/train/index.json"
+      base_path: "/data/custom/train"
+      weight: 0.2
+      enabled: false
+
+  # Video preprocessing
+  video:
+    fps: 24
+    size: [224, 224]  # [height, width]
+    max_frames: 240  # 10 seconds at 24fps
+    format: "CHW"  # CHW or HWC
+    normalize: true
+    mean: [0.485, 0.456, 0.406]
+    std: [0.229, 0.224, 0.225]
+
+  # Audio preprocessing
+  audio:
+    sample_rate: 48000
+    max_duration: 10.0  # seconds
+    mono: false
+    normalize: true
+    method: "peak"  # peak, rms, lufs
+
+  # Data loading
+  dataloader:
+    batch_size: 8
+    shuffle: true
+    num_workers: 4
+    pin_memory: true
+    drop_last: true
+    prefetch_factor: 2
+
+# Validation datasets
+val:
+  datasets:
+    - type: "vggsound"
+      path: "/data/vggsound"
+      split: "val"
+      enabled: false
+
+    - type: "custom"
+      name: "custom_val"
+      index_path: "/data/custom/val/index.json"
+      base_path: "/data/custom/val"
+      enabled: false
+
+  video:
+    fps: 24
+    size: [224, 224]
+    max_frames: 240
+    format: "CHW"
+    normalize: true
+    mean: [0.485, 0.456, 0.406]
+    std: [0.229, 0.224, 0.225]
+
+  audio:
+    sample_rate: 48000
+    max_duration: 10.0
+    mono: false
+    normalize: true
+
+  dataloader:
+    batch_size: 8
+    shuffle: false
+    num_workers: 2
+    pin_memory: true
+    drop_last: false
+
+# Test datasets
+test:
+  datasets:
+    - type: "custom"
+      index_path: "/data/test/index.json"
+      base_path: "/data/test"
+      enabled: false
+
+  video:
+    fps: 24
+    size: [224, 224]
+    max_frames: 240
+
+  audio:
+    sample_rate: 48000
+    max_duration: 10.0
+
+  dataloader:
+    batch_size: 1
+    shuffle: false
+    num_workers: 1
+
+# Dataset-specific configurations
+dataset_configs:
+  vggsound:
+    video_dir: "videos"
+    audio_dir: "audio"
+    metadata_file: "vggsound.csv"
+    classes_file: "classes.txt"
+    download_script: "scripts/download_vggsound.sh"
+
+  audioset:
+    video_dir: "videos"
+    audio_dir: "audio"
+    metadata_file: "audioset_strong.csv"
+    ontology_file: "ontology.json"
+    download_script: "scripts/download_audioset.sh"
+
+  greatest_hits:
+    data_dir: "greatest_hits"
+    metadata_file: "metadata.json"
+    material_types:
+      - "ceramic"
+      - "fabric"
+      - "glass"
+      - "metal"
+      - "paper"
+      - "plastic"
+      - "wood"
+
+  custom:
+    # Expected format for custom dataset index.json:
+    # [
+    #   {
+    #     "video_path": "path/to/video.mp4",
+    #     "audio_path": "path/to/audio.wav",  # optional
+    #     "duration": 5.0,
+    #     "fps": 24.0,
+    #     "sample_rate": 48000,
+    #     "labels": ["speech", "indoor"],  # optional
+    #     "metadata": {}  # optional additional metadata
+    #   },
+    #   ...
+    # ]
+    required_fields:
+      - "video_path"
+    optional_fields:
+      - "audio_path"
+      - "duration"
+      - "fps"
+      - "sample_rate"
+      - "labels"
+      - "metadata"
+
+# Data filtering and quality control
+filtering:
+  min_duration: 0.5  # seconds
+  max_duration: 30.0  # seconds
+  min_resolution: [128, 128]  # [height, width]
+  max_aspect_ratio: 3.0  # width/height
+  min_audio_quality: 16000  # sample rate
+
+  # Skip samples with issues
+  skip_corrupted: true
+  skip_silent: true
+  silence_threshold_db: -50.0
+
+# Cache configuration
+cache:
+  enabled: false
+  cache_dir: "./cache"
+  cache_features: false  # cache extracted features
+  cache_preprocessing: false  # cache preprocessed data

@@ -1,0 +1,34 @@
+# VersaSound ComfyUI Extension Requirements
+
+# Core dependencies
+torch>=2.0.0
+torchaudio>=2.0.0
+torchvision>=0.15.0
+numpy>=1.24.0
+scipy>=1.10.0
+
+# Audio processing
+librosa>=0.10.0
+soundfile>=0.12.0
+
+# Model dependencies
+transformers>=4.30.0
+diffusers>=0.20.0
+accelerate>=0.20.0
+safetensors>=0.3.0
+
+# Fine-tuning (optional but recommended)
+peft>=0.4.0
+
+# Utilities
+einops>=0.6.0
+ftfy>=6.1.0
+pyyaml>=6.0
+requests>=2.31.0
+tqdm>=4.65.0
+
+# Optional: Specific audio model backends
+# Uncomment if you want to use specific models:
+# audioldm2 (via diffusers - already included)
+# stable-audio-tools>=0.1.0
+# audiocraft>=1.0.0
