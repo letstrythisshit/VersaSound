@@ -1,0 +1,230 @@
+{
+  "last_node_id": 5,
+  "last_link_id": 5,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "LoadVideo",
+      "pos": [100, 100],
+      "size": [300, 100],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "VIDEO",
+          "type": "IMAGE",
+          "links": [1]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadVideo"
+      },
+      "widgets_values": [
+        "path/to/your/video.mp4"
+      ]
+    },
+    {
+      "id": 2,
+      "type": "VAEEncode",
+      "pos": [450, 100],
+      "size": [300, 150],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "pixels",
+          "type": "IMAGE",
+          "link": 1
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [3]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAEEncode"
+      }
+    },
+    {
+      "id": 3,
+      "type": "VAELoader",
+      "pos": [100, 250],
+      "size": [300, 100],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [2, 4]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAELoader"
+      },
+      "widgets_values": [
+        "vae-ft-mse-840000-ema-pruned.safetensors"
+      ]
+    },
+    {
+      "id": 4,
+      "type": "VersaSound_LatentToVisualFeatures",
+      "pos": [800, 100],
+      "size": [350, 150],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "latents",
+          "type": "LATENT",
+          "link": 3
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 4
+        }
+      ],
+      "outputs": [
+        {
+          "name": "visual_features",
+          "type": "VISUAL_FEATURES",
+          "links": [5]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VersaSound_LatentToVisualFeatures"
+      },
+      "widgets_values": [
+        "videomae",
+        224
+      ]
+    },
+    {
+      "id": 5,
+      "type": "VersaSound_AudioGenerator",
+      "pos": [1200, 100],
+      "size": [400, 250],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "visual_features",
+          "type": "VISUAL_FEATURES",
+          "link": 5
+        }
+      ],
+      "outputs": [
+        {
+          "name": "audio",
+          "type": "AUDIO",
+          "links": [6]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VersaSound_AudioGenerator"
+      },
+      "widgets_values": [
+        "audioldm2",
+        "Generate audio matching the visual content",
+        "",
+        50,
+        10.0,
+        16000,
+        5.0,
+        42
+      ]
+    },
+    {
+      "id": 6,
+      "type": "SaveAudio",
+      "pos": [1650, 100],
+      "size": [300, 100],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "audio",
+          "type": "AUDIO",
+          "link": 6
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SaveAudio"
+      },
+      "widgets_values": [
+        "output_audio.wav"
+      ]
+    }
+  ],
+  "links": [
+    [1, 1, 0, 2, 0, "IMAGE"],
+    [2, 3, 0, 2, 1, "VAE"],
+    [3, 2, 0, 4, 0, "LATENT"],
+    [4, 3, 0, 4, 1, "VAE"],
+    [5, 4, 0, 5, 0, "VISUAL_FEATURES"],
+    [6, 5, 0, 6, 0, "AUDIO"]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1.0,
+      "offset": [0, 0]
+    }
+  },
+  "version": 0.4,
+  "workflow_info": {
+    "name": "VersaSound Latent Workflow",
+    "description": "Generate audio from latent representations (useful for Stable Video Diffusion, AnimateDiff, etc.)",
+    "nodes": {
+      "LoadVideo": "Load your video file",
+      "VAELoader": "Load VAE model for encoding/decoding",
+      "VAEEncode": "Encode video frames to latent space",
+      "VersaSound_LatentToVisualFeatures": "Convert latents to visual features",
+      "VersaSound_AudioGenerator": "Generate audio from visual features",
+      "SaveAudio": "Save generated audio to file"
+    },
+    "use_cases": [
+      "Working with Stable Video Diffusion outputs",
+      "AnimateDiff generated videos",
+      "Any latent-based video generation pipeline",
+      "Memory-constrained scenarios (latents are smaller than raw pixels)"
+    ],
+    "parameters": {
+      "latent_to_visual": {
+        "backbone": "videomae (default) - applies to decoded frames",
+        "input_size": "224 (auto-resized after VAE decode)"
+      },
+      "vae": {
+        "note": "Use the same VAE that generated your latents",
+        "compatible": [
+          "SD 1.5 VAE",
+          "SDXL VAE",
+          "SVD VAE",
+          "Any ComfyUI-compatible VAE"
+        ]
+      }
+    },
+    "tips": [
+      "Use the SAME VAE that created the latents",
+      "This workflow is useful when you already have latent representations",
+      "Latents take less memory than raw video frames",
+      "Works with any ComfyUI latent-based video pipeline"
+    ]
+  }
+}

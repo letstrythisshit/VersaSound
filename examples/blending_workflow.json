@@ -1,0 +1,336 @@
+{
+  "last_node_id": 8,
+  "last_link_id": 10,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "LoadVideo",
+      "pos": [100, 100],
+      "size": [300, 100],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "VIDEO",
+          "type": "IMAGE",
+          "links": [1]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadVideo"
+      },
+      "widgets_values": [
+        "path/to/video1.mp4"
+      ]
+    },
+    {
+      "id": 2,
+      "type": "LoadVideo",
+      "pos": [100, 450],
+      "size": [300, 100],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "VIDEO",
+          "type": "IMAGE",
+          "links": [2]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadVideo"
+      },
+      "widgets_values": [
+        "path/to/video2.mp4"
+      ]
+    },
+    {
+      "id": 3,
+      "type": "VersaSound_VisualFeatureExtractor",
+      "pos": [450, 100],
+      "size": [350, 150],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "video",
+          "type": "IMAGE",
+          "link": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "visual_features",
+          "type": "VISUAL_FEATURES",
+          "links": [3]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VersaSound_VisualFeatureExtractor"
+      },
+      "widgets_values": [
+        "videomae",
+        224
+      ]
+    },
+    {
+      "id": 4,
+      "type": "VersaSound_VisualFeatureExtractor",
+      "pos": [450, 450],
+      "size": [350, 150],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "video",
+          "type": "IMAGE",
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "name": "visual_features",
+          "type": "VISUAL_FEATURES",
+          "links": [4]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VersaSound_VisualFeatureExtractor"
+      },
+      "widgets_values": [
+        "videomae",
+        224
+      ]
+    },
+    {
+      "id": 5,
+      "type": "VersaSound_AudioGenerator",
+      "pos": [850, 100],
+      "size": [400, 250],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "visual_features",
+          "type": "VISUAL_FEATURES",
+          "link": 3
+        }
+      ],
+      "outputs": [
+        {
+          "name": "audio",
+          "type": "AUDIO",
+          "links": [5]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VersaSound_AudioGenerator"
+      },
+      "widgets_values": [
+        "audioldm2",
+        "Environmental ambient sounds",
+        "",
+        50,
+        10.0,
+        16000,
+        5.0,
+        42
+      ]
+    },
+    {
+      "id": 6,
+      "type": "VersaSound_AudioGenerator",
+      "pos": [850, 450],
+      "size": [400, 250],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "visual_features",
+          "type": "VISUAL_FEATURES",
+          "link": 4
+        }
+      ],
+      "outputs": [
+        {
+          "name": "audio",
+          "type": "AUDIO",
+          "links": [6]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VersaSound_AudioGenerator"
+      },
+      "widgets_values": [
+        "audioldm2",
+        "Specific action sounds and impacts",
+        "",
+        50,
+        10.0,
+        16000,
+        5.0,
+        123
+      ]
+    },
+    {
+      "id": 7,
+      "type": "VersaSound_AudioBlender",
+      "pos": [1300, 275],
+      "size": [400, 250],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "audio1",
+          "type": "AUDIO",
+          "link": 5
+        },
+        {
+          "name": "audio2",
+          "type": "AUDIO",
+          "link": 6
+        }
+      ],
+      "outputs": [
+        {
+          "name": "audio",
+          "type": "AUDIO",
+          "links": [7]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VersaSound_AudioBlender"
+      },
+      "widgets_values": [
+        "mix",
+        0.5,
+        1.0,
+        true
+      ]
+    },
+    {
+      "id": 8,
+      "type": "SaveAudio",
+      "pos": [1750, 275],
+      "size": [300, 100],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "audio",
+          "type": "AUDIO",
+          "link": 7
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SaveAudio"
+      },
+      "widgets_values": [
+        "output_blended_audio.wav"
+      ]
+    }
+  ],
+  "links": [
+    [1, 1, 0, 3, 0, "IMAGE"],
+    [2, 2, 0, 4, 0, "IMAGE"],
+    [3, 3, 0, 5, 0, "VISUAL_FEATURES"],
+    [4, 4, 0, 6, 0, "VISUAL_FEATURES"],
+    [5, 5, 0, 7, 0, "AUDIO"],
+    [6, 6, 0, 7, 1, "AUDIO"],
+    [7, 7, 0, 8, 0, "AUDIO"]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1.0,
+      "offset": [0, 0]
+    }
+  },
+  "version": 0.4,
+  "workflow_info": {
+    "name": "VersaSound Audio Blending Workflow",
+    "description": "Combine audio from multiple visual sources to create rich, layered soundscapes",
+    "nodes": {
+      "LoadVideo (x2)": "Load two different video sources",
+      "VersaSound_VisualFeatureExtractor (x2)": "Extract visual features from each video",
+      "VersaSound_AudioGenerator (x2)": "Generate audio from each set of features",
+      "VersaSound_AudioBlender": "Blend the two audio streams together",
+      "SaveAudio": "Save the blended audio output"
+    },
+    "use_cases": [
+      "Layered soundscapes: Background ambience + foreground actions",
+      "Multi-source audio: Combine different aspects of the same scene",
+      "Creative audio mixing: Blend complementary audio sources",
+      "Complex scenes: Separate ambient from specific sounds",
+      "Audio transitions: Crossfade between different audio sources"
+    ],
+    "example_scenarios": {
+      "scenario_1": {
+        "description": "Forest scene with wildlife",
+        "video1": "Wide shot of forest (ambient birds, wind)",
+        "video2": "Close-up of deer walking (footsteps, rustling)",
+        "blend_mode": "mix",
+        "weight": "0.3 (30% ambient, 70% action)"
+      },
+      "scenario_2": {
+        "description": "Urban street scene",
+        "video1": "Traffic and city ambience",
+        "video2": "Person walking and talking",
+        "blend_mode": "layer",
+        "weight": "0.5 (equal mix)"
+      },
+      "scenario_3": {
+        "description": "Transition between scenes",
+        "video1": "Indoor office sounds",
+        "video2": "Outdoor park sounds",
+        "blend_mode": "crossfade",
+        "crossfade_duration": "2.0 seconds"
+      }
+    },
+    "parameters": {
+      "audio_blender": {
+        "blend_mode": {
+          "mix": "Simple weighted average of both audio sources",
+          "layer": "Layer audio2 on top of audio1 (preserve both)",
+          "crossfade": "Smooth transition from audio1 to audio2"
+        },
+        "weight": "0.0-1.0 (0.0 = 100% audio1, 1.0 = 100% audio2, 0.5 = equal)",
+        "crossfade_duration": "Duration in seconds for crossfade mode",
+        "normalize_output": "true = prevent clipping from combined audio"
+      },
+      "different_prompts": {
+        "tip": "Use different text prompts for each Audio Generator",
+        "example_1": "Ambient environmental sounds",
+        "example_2": "Specific action sounds and impacts"
+      }
+    },
+    "tips": [
+      "Use different prompts for each Audio Generator to separate concerns",
+      "weight=0.5 gives equal mix, adjust based on which should dominate",
+      "blend_mode='mix' is good for combining complementary sounds",
+      "blend_mode='layer' preserves both audio sources more distinctly",
+      "blend_mode='crossfade' is great for transitioning between scenes",
+      "Enable normalize_output to prevent clipping from combined audio",
+      "You can chain multiple Audio Blenders for >2 sources"
+    ],
+    "advanced_usage": {
+      "three_sources": "Use two Audio Blenders in sequence",
+      "dynamic_mixing": "Vary weight over time (future feature)",
+      "frequency_separation": "Use Audio Refiner after blending for EQ"
+    },
+    "workflow_variations": {
+      "with_refinement": "Add Audio Refiner after Audio Blender",
+      "with_temporal_sync": "Add Temporal Synchronizer before blending",
+      "multi_source": "Chain multiple Audio Blenders for 3+ sources"
+    }
+  }
+}

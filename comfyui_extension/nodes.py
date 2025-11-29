@@ -28,7 +28,12 @@ logger = logging.getLogger(__name__)
 class VisualFeatureExtractor:
     """
     Extract visual features from video frames or latents
-    Works with: raw video, image sequences, VAE latents
+
+    INPUTS (choose ONE):
+    - Connect 'video' for raw images/video (most common)
+    - OR connect 'latents' + 'vae' for latent workflow
+
+    Don't connect both! Use only one workflow.
     """
 
     @classmethod
@@ -38,9 +43,9 @@ class VisualFeatureExtractor:
                 "model_name": (["versatile", "speech_optimized", "foley_optimized"],),
             },
             "optional": {
-                "video": ("IMAGE",),  # ComfyUI image batch [B, H, W, C]
-                "latents": ("LATENT",),  # ComfyUI latent dict
-                "vae": ("VAE",),  # For decoding latents
+                "video": ("IMAGE",),  # Option 1: Raw video/images
+                "latents": ("LATENT",),  # Option 2: Latents (requires VAE too)
+                "vae": ("VAE",),  # Required if using latents
                 "fps": ("FLOAT", {"default": 24.0, "min": 1.0, "max": 120.0}),
                 "extract_motion": ("BOOLEAN", {"default": True}),
                 "extract_semantic": ("BOOLEAN", {"default": True}),
@@ -69,14 +74,18 @@ class VisualFeatureExtractor:
         extract_semantic: bool = True
     ) -> Tuple[VisualFeatures]:
         """
-        Extract visual features
+        Extract visual features from video OR latents (not both!)
+
+        WORKFLOW OPTIONS:
+        1. Video workflow: Connect 'video' input with raw images
+        2. Latent workflow: Connect 'latents' + 'vae' inputs
 
         Args:
             model_name: Model variant to use
-            video: Video frames [B, H, W, C]
-            latents: ComfyUI latent dictionary
-            vae: VAE for decoding latents
-            fps: Frame rate
+            video: (Option 1) Video frames [N, H, W, C] from ComfyUI
+            latents: (Option 2) ComfyUI latent dictionary
+            vae: (Option 2) VAE for decoding latents
+            fps: Frame rate of video
             extract_motion: Extract motion features
             extract_semantic: Extract semantic features
 
@@ -133,7 +142,12 @@ class VisualFeatureExtractor:
                 )
 
             else:
-                raise ValueError("Either video or latents must be provided")
+                raise ValueError(
+                    "No input provided! You must connect ONE of the following:\n"
+                    "  Option 1: Connect 'video' input (raw images/video)\n"
+                    "  Option 2: Connect 'latents' + 'vae' inputs (latent workflow)\n"
+                    "Choose one workflow and connect the appropriate inputs."
+                )
 
             # Move to device
             video_tensor = video_tensor.to(self.device)

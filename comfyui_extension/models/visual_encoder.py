@@ -224,6 +224,28 @@ class UniversalVisualEncoder(nn.Module):
 
         return video_resized
 
+    def _normalize_video(self, video: torch.Tensor) -> torch.Tensor:
+        """
+        Normalize video with ImageNet statistics
+        VideoMAE and most vision models expect this normalization
+
+        Args:
+            video: Video tensor [B, T, C, H, W] in range [0, 1]
+
+        Returns:
+            Normalized video tensor
+        """
+        # ImageNet normalization
+        mean = torch.tensor([0.485, 0.456, 0.406]).view(1, 1, 3, 1, 1).to(video.device)
+        std = torch.tensor([0.229, 0.224, 0.225]).view(1, 1, 3, 1, 1).to(video.device)
+
+        # Normalize
+        video_normalized = (video - mean) / std
+
+        logger.debug(f"Normalized video with ImageNet stats")
+
+        return video_normalized
+
     def forward(
         self,
         video: torch.Tensor,
@@ -261,6 +283,9 @@ class UniversalVisualEncoder(nn.Module):
 
         # Resize to expected size for backbone
         video = self._resize_video(video, self.expected_size)
+
+        # Normalize for backbone (ImageNet stats)
+        video = self._normalize_video(video)
 
         # Extract backbone features
         backbone_features = self._extract_backbone_features(video)
