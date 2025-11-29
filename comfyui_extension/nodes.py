@@ -194,7 +194,7 @@ class AudioGenerator:
         return {
             "required": {
                 "visual_features": (VISUAL_FEATURES_TYPE,),
-                "audio_model": (["audioldm2", "stable_audio", "audiocraft"],),
+                "audio_model": (["audioldm2"],),  # Only AudioLDM2 is currently implemented
             },
             "optional": {
                 "text_prompt": ("STRING", {"multiline": True, "default": ""}),

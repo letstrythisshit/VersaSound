@@ -409,18 +409,37 @@ class UniversalAudioGenerator(nn.Module):
     def _patch_gpt2_if_needed(self):
         """Attempt to patch GPT2Model for compatibility with newer transformers"""
         try:
-            # Check if the text encoder has the problematic method
+            import types
+
+            # AudioLDM2 uses 'language_model' which is a GPT2Model - this is where the error occurs
+            if hasattr(self.audio_model, 'language_model'):
+                language_model = self.audio_model.language_model
+                if not hasattr(language_model, '_update_model_kwargs_for_generation'):
+                    # Add the missing method as a pass-through
+                    def _update_model_kwargs_for_generation(self, outputs, model_kwargs, **kwargs):
+                        # Simple pass-through - just return model_kwargs unchanged
+                        return model_kwargs
+
+                    # Bind the method to the language_model instance
+                    language_model._update_model_kwargs_for_generation = types.MethodType(
+                        _update_model_kwargs_for_generation, language_model
+                    )
+                    logger.info("✓ Patched language_model (GPT2Model)._update_model_kwargs_for_generation")
+
+            # Also check text_encoder in case it's needed
             if hasattr(self.audio_model, 'text_encoder'):
                 text_encoder = self.audio_model.text_encoder
                 if hasattr(text_encoder, 'transformer') and not hasattr(text_encoder.transformer, '_update_model_kwargs_for_generation'):
-                    # Add the missing method as a pass-through
                     def _update_model_kwargs_for_generation(self, outputs, model_kwargs, **kwargs):
                         return model_kwargs
 
-                    text_encoder.transformer._update_model_kwargs_for_generation = _update_model_kwargs_for_generation.__get__(text_encoder.transformer)
-                    logger.info("Patched GPT2Model._update_model_kwargs_for_generation")
+                    text_encoder.transformer._update_model_kwargs_for_generation = types.MethodType(
+                        _update_model_kwargs_for_generation, text_encoder.transformer
+                    )
+                    logger.info("✓ Patched text_encoder.transformer (GPT2Model)._update_model_kwargs_for_generation")
+
         except Exception as e:
-            logger.debug(f"Could not patch GPT2Model: {e}")
+            logger.warning(f"Could not patch GPT2Model: {e}")
 
     def _generate_with_stable_audio(
         self,
