@@ -178,10 +178,21 @@ class UniversalAudioGenerator(nn.Module):
 
     def _freeze_audio_model(self):
         """Freeze pretrained audio model parameters"""
-        for param in self.audio_model.parameters():
-            param.requires_grad = False
-
-        logger.debug("Froze audio model parameters")
+        # Check if it's a diffusers Pipeline (which doesn't have .parameters() method)
+        if hasattr(self.audio_model, 'components'):
+            # It's a diffusers Pipeline - freeze its components
+            for name, component in self.audio_model.components.items():
+                if component is not None and isinstance(component, nn.Module):
+                    for param in component.parameters():
+                        param.requires_grad = False
+            logger.debug("Froze audio model pipeline components")
+        elif hasattr(self.audio_model, 'parameters'):
+            # It's a regular nn.Module
+            for param in self.audio_model.parameters():
+                param.requires_grad = False
+            logger.debug("Froze audio model parameters")
+        else:
+            logger.warning("Audio model has no parameters to freeze")
 
     def _add_lora_layers(self, rank: int):
         """Add LoRA adapters for fine-tuning"""
@@ -203,6 +214,31 @@ class UniversalAudioGenerator(nn.Module):
             logger.warning("peft library not available, skipping LoRA")
         except Exception as e:
             logger.warning(f"Could not add LoRA: {e}")
+
+    def to(self, device):
+        """Override to() to handle Pipeline objects"""
+        # Move the nn.Module components (adapter, temporal controller, etc.)
+        super().to(device)
+
+        # Move audio model (handle Pipeline objects specially)
+        if hasattr(self.audio_model, 'to'):
+            # Try to move the whole model/pipeline
+            try:
+                self.audio_model = self.audio_model.to(device)
+                logger.debug(f"Moved audio model to {device}")
+            except Exception as e:
+                logger.warning(f"Could not move audio model to device: {e}")
+                # If it's a Pipeline, try moving components individually
+                if hasattr(self.audio_model, 'components'):
+                    for name, component in self.audio_model.components.items():
+                        if component is not None and hasattr(component, 'to'):
+                            try:
+                                component.to(device)
+                                logger.debug(f"Moved pipeline component '{name}' to {device}")
+                            except Exception as comp_e:
+                                logger.warning(f"Could not move component '{name}': {comp_e}")
+
+        return self
 
     @torch.no_grad()
     def forward(
@@ -404,6 +440,14 @@ class VisualToAudioAdapter(nn.Module):
     ):
         super().__init__()
 
+        self.visual_dim = visual_dim
+
+        # Motion fusion projection (projects concatenated temporal+motion back to visual_dim)
+        # This is used when motion features are available
+        # Input: visual_dim + motion_dim, Output: visual_dim
+        # We'll initialize this to handle up to visual_dim*2 to be safe
+        self.motion_fusion = nn.Linear(visual_dim * 2, visual_dim)
+
         # Input projection
         self.input_proj = nn.Linear(visual_dim, audio_latent_dim)
 
@@ -441,13 +485,10 @@ class VisualToAudioAdapter(nn.Module):
 
         # If motion features available, incorporate them
         if motion is not None:
-            # Combine via concatenation and projection
+            # Combine via concatenation and learned projection
             combined = torch.cat([temporal, motion], dim=-1)
-            # Project back to visual_dim
-            combined = nn.functional.linear(
-                combined,
-                weight=torch.nn.Parameter(torch.randn(temporal.shape[-1], combined.shape[-1]))
-            )
+            # Project back to visual_dim using learned weights
+            combined = self.motion_fusion(combined)
         else:
             combined = temporal
 
