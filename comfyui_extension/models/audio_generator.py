@@ -178,10 +178,21 @@ class UniversalAudioGenerator(nn.Module):
 
     def _freeze_audio_model(self):
         """Freeze pretrained audio model parameters"""
-        for param in self.audio_model.parameters():
-            param.requires_grad = False
-
-        logger.debug("Froze audio model parameters")
+        # Check if it's a diffusers Pipeline (which doesn't have .parameters() method)
+        if hasattr(self.audio_model, 'components'):
+            # It's a diffusers Pipeline - freeze its components
+            for name, component in self.audio_model.components.items():
+                if component is not None and isinstance(component, nn.Module):
+                    for param in component.parameters():
+                        param.requires_grad = False
+            logger.debug("Froze audio model pipeline components")
+        elif hasattr(self.audio_model, 'parameters'):
+            # It's a regular nn.Module
+            for param in self.audio_model.parameters():
+                param.requires_grad = False
+            logger.debug("Froze audio model parameters")
+        else:
+            logger.warning("Audio model has no parameters to freeze")
 
     def _add_lora_layers(self, rank: int):
         """Add LoRA adapters for fine-tuning"""
