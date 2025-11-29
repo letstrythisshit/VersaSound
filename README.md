@@ -29,6 +29,7 @@ VersaSound can generate synchronized audio for:
 ## 📋 Table of Contents
 
 - [Installation](#installation)
+- [Troubleshooting](#troubleshooting)
 - [Quick Start](#quick-start)
 - [ComfyUI Nodes](#comfyui-nodes)
 - [Training](#training)
@@ -87,6 +88,39 @@ pip install -r requirements.txt
 - PyTorch 2.0+ with CUDA
 - 16GB RAM
 - 8GB+ VRAM (NVIDIA GPU)
+
+## 🔧 Troubleshooting
+
+### AudioLDM2 Compatibility Error
+
+**Error**: `'GPT2Model' object has no attribute '_update_model_kwargs_for_generation'`
+
+**Cause**: Incompatible versions of `transformers` and `diffusers` libraries.
+
+**Solution**: Install compatible versions:
+```bash
+pip install 'transformers>=4.30.0,<5.0.0' 'diffusers>=0.25.0,<0.32.0'
+```
+
+**Note**: Transformers 5.x has breaking changes in the generation API that are incompatible with AudioLDM2. Always use transformers 4.x.
+
+### No Audio Output / Silent Audio
+
+If you're getting silent audio or the generation completes too quickly:
+
+1. Check the console logs for "Using dummy audio generator" warning
+2. This means AudioLDM2 failed to load - see error above
+3. Install correct library versions
+4. Restart ComfyUI after fixing
+
+### Memory Issues
+
+If you encounter CUDA out of memory errors:
+
+1. Reduce video resolution before processing
+2. Process shorter video clips
+3. Enable `clear_cache_after_generation` in config
+4. Use CPU mode (slower but uses system RAM)
 
 ## 🎯 Quick Start
 

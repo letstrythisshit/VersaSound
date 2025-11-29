@@ -360,8 +360,19 @@ class UniversalAudioGenerator(nn.Module):
             elif audio.dim() == 1:
                 audio = audio.unsqueeze(0).expand(batch_size, -1)
 
+            logger.info(f"AudioLDM2 generated audio: {audio.shape}")
             return audio
 
+        except AttributeError as e:
+            if "_update_model_kwargs_for_generation" in str(e):
+                logger.error(
+                    "AudioLDM2 compatibility error: Your transformers version is incompatible.\n"
+                    "Please install: pip install 'transformers>=4.30.0,<5.0.0'\n"
+                    "Falling back to dummy audio generation."
+                )
+            else:
+                logger.error(f"AudioLDM2 AttributeError: {e}")
+            return self._dummy_generate(conditioning, duration)
         except Exception as e:
             logger.error(f"Error generating with AudioLDM2: {e}")
             # Fallback to dummy generation
@@ -397,15 +408,30 @@ class UniversalAudioGenerator(nn.Module):
         duration: float
     ) -> torch.Tensor:
         """Dummy audio generation for testing"""
+        logger.warning(
+            "Using dummy audio generator! AudioLDM2 is not working.\n"
+            "To fix: pip install 'transformers>=4.30.0,<5.0.0' 'diffusers>=0.25.0,<0.32.0'"
+        )
+
         batch_size = conditioning.shape[0]
         num_samples = int(duration * 48000)
 
-        # Generate simple sine wave based on conditioning
+        # Generate audible sine wave sweep for testing
+        # This creates an audible test tone that sweeps from 220Hz to 880Hz
         t = torch.linspace(0, duration, num_samples).to(conditioning.device)
-        freq = 440.0 + conditioning.mean() * 100  # Vary frequency based on conditioning
 
-        audio = torch.sin(2 * torch.pi * freq * t)
+        # Frequency sweep from 220Hz (A3) to 880Hz (A5) over duration
+        freq_start = 220.0
+        freq_end = 880.0
+        freq = freq_start + (freq_end - freq_start) * (t / duration)
+
+        # Generate tone with amplitude 0.3 (audible but not too loud)
+        audio = 0.3 * torch.sin(2 * torch.pi * freq * t)
+
+        # Expand to batch size
         audio = audio.unsqueeze(0).expand(batch_size, -1)
+
+        logger.info(f"Generated dummy audio: shape={audio.shape}, min={audio.min():.3f}, max={audio.max():.3f}")
 
         return audio
 
