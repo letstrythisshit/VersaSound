@@ -95,17 +95,36 @@ class VisualFeatureExtractor:
             # Determine input type and process
             if video is not None:
                 # Process video frames
-                # ComfyUI format: [B, H, W, C] -> [B, T, C, H, W]
+                # ComfyUI format: [B, H, W, C] or [N, H, W, C] where N is number of frames
+                logger.info(f"Input video shape: {video.shape}, dtype: {video.dtype}")
+
                 if video.dim() == 4:
-                    # Treat as video sequence
-                    video_tensor = video.permute(0, 3, 1, 2)  # [B, C, H, W]
-                    # Add temporal dimension if single batch
-                    if video_tensor.shape[0] == 1:
-                        video_tensor = video_tensor.unsqueeze(1)  # [1, 1, C, H, W]
+                    # ComfyUI image batch: [N, H, W, C]
+                    # Convert to [B=1, T=N, C, H, W] for model
+                    N, H, W, C = video.shape
+
+                    if C != 3:
+                        raise ValueError(f"Expected 3 channels (RGB), got {C}. "
+                                       f"Input shape: {video.shape}")
+
+                    # Permute to [N, C, H, W]
+                    video_tensor = video.permute(0, 3, 1, 2)  # [N, C, H, W]
+
+                    # Add batch dimension: [1, N, C, H, W]
+                    video_tensor = video_tensor.unsqueeze(0)  # [1, N, C, H, W]
+
+                    logger.info(f"Converted to model format: {video_tensor.shape}")
+
+                elif video.dim() == 5:
+                    # Already in video format [B, T, C, H, W] or [B, T, H, W, C]
+                    if video.shape[-1] == 3:
+                        # Channels last: [B, T, H, W, C] -> [B, T, C, H, W]
+                        video_tensor = video.permute(0, 1, 4, 2, 3)
                     else:
-                        video_tensor = video_tensor.unsqueeze(0)  # [1, B, C, H, W]
+                        video_tensor = video
                 else:
-                    raise ValueError(f"Unexpected video shape: {video.shape}")
+                    raise ValueError(f"Unexpected video shape: {video.shape}. "
+                                   f"Expected 4D [N, H, W, C] or 5D [B, T, H, W, C]")
 
             elif latents is not None:
                 # Process latents
