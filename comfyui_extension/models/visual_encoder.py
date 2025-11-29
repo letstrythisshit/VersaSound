@@ -347,23 +347,25 @@ class UniversalVisualEncoder(nn.Module):
             if 'videomae' in self.backbone_name.lower():
                 # VideoMAE expects [B, T, C, H, W] (batch, num_frames, num_channels, height, width)
                 # Process in temporal chunks
-                # VideoMAE tubelet size is (2, 16, 16) so we need at least 2 frames per chunk
+                # VideoMAE pretrained model expects EXACTLY 16 frames due to fixed position embeddings
                 features = []
-                chunk_size = min(16, T)  # Process 16 frames at a time
-                min_frames = 2  # VideoMAE requires at least 2 frames (tubelet temporal size)
+                chunk_size = 16  # VideoMAE-base was trained on 16 frames
+                expected_frames = 16  # Must pad all chunks to this size
 
                 for i in range(0, T, chunk_size):
                     end = min(i + chunk_size, T)
                     chunk = video[:, i:end]  # [B, chunk_T, C, H, W]
+                    original_chunk_T = chunk.shape[1]
 
-                    # Handle small chunks - VideoMAE needs at least 2 frames
+                    # Pad chunk to exactly 16 frames for VideoMAE
+                    # The pretrained model has position embeddings for exactly 16 frames
                     chunk_T = chunk.shape[1]
-                    if chunk_T < min_frames:
+                    if chunk_T < expected_frames:
                         # Pad by repeating the last frame
-                        padding_needed = min_frames - chunk_T
+                        padding_needed = expected_frames - chunk_T
                         last_frame = chunk[:, -1:].repeat(1, padding_needed, 1, 1, 1)
                         chunk = torch.cat([chunk, last_frame], dim=1)
-                        logger.debug(f"Padded chunk from {chunk_T} to {chunk.shape[1]} frames")
+                        logger.debug(f"Padded chunk from {chunk_T} to {expected_frames} frames")
 
                     # VideoMAE expects [B, T, C, H, W] - already in correct format
                     # NO permutation needed!
@@ -373,8 +375,8 @@ class UniversalVisualEncoder(nn.Module):
                     # Get CLS token or mean pool
                     feat = outputs.last_hidden_state[:, 0]  # [B, D]
 
-                    # Expand to match chunk size
-                    feat = feat.unsqueeze(1).expand(-1, end - i, -1)
+                    # Expand to match ORIGINAL chunk size (before padding)
+                    feat = feat.unsqueeze(1).expand(-1, original_chunk_T, -1)
                     features.append(feat)
 
                 features = torch.cat(features, dim=1)  # [B, T, D]
