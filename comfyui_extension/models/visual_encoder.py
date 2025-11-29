@@ -347,12 +347,23 @@ class UniversalVisualEncoder(nn.Module):
             if 'videomae' in self.backbone_name.lower():
                 # VideoMAE expects [B, T, C, H, W] (batch, num_frames, num_channels, height, width)
                 # Process in temporal chunks
+                # VideoMAE tubelet size is (2, 16, 16) so we need at least 2 frames per chunk
                 features = []
                 chunk_size = min(16, T)  # Process 16 frames at a time
+                min_frames = 2  # VideoMAE requires at least 2 frames (tubelet temporal size)
 
                 for i in range(0, T, chunk_size):
                     end = min(i + chunk_size, T)
                     chunk = video[:, i:end]  # [B, chunk_T, C, H, W]
+
+                    # Handle small chunks - VideoMAE needs at least 2 frames
+                    chunk_T = chunk.shape[1]
+                    if chunk_T < min_frames:
+                        # Pad by repeating the last frame
+                        padding_needed = min_frames - chunk_T
+                        last_frame = chunk[:, -1:].repeat(1, padding_needed, 1, 1, 1)
+                        chunk = torch.cat([chunk, last_frame], dim=1)
+                        logger.debug(f"Padded chunk from {chunk_T} to {chunk.shape[1]} frames")
 
                     # VideoMAE expects [B, T, C, H, W] - already in correct format
                     # NO permutation needed!
