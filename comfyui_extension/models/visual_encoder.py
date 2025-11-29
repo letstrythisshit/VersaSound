@@ -40,6 +40,9 @@ class UniversalVisualEncoder(nn.Module):
         self.output_dim = config.get('output_dim', 768)
         self.freeze_backbone = config.get('freeze_backbone', True)
 
+        # Expected input size for backbone (will resize to this)
+        self.expected_size = config.get('input_size', 224)
+
         # Load pretrained backbone
         self.backbone, self.backbone_dim = self._load_backbone()
 
@@ -186,6 +189,41 @@ class UniversalVisualEncoder(nn.Module):
             logger.error(f"Error loading ResNet3D: {e}")
             raise
 
+    def _resize_video(self, video: torch.Tensor, target_size: int) -> torch.Tensor:
+        """
+        Resize video frames to target size
+
+        Args:
+            video: Video tensor [B, T, C, H, W]
+            target_size: Target height/width
+
+        Returns:
+            Resized video [B, T, C, target_size, target_size]
+        """
+        B, T, C, H, W = video.shape
+
+        # Check if resize needed
+        if H == target_size and W == target_size:
+            return video
+
+        logger.debug(f"Resizing video from {H}x{W} to {target_size}x{target_size}")
+
+        # Reshape for interpolation: [B*T, C, H, W]
+        video_flat = video.reshape(B * T, C, H, W)
+
+        # Resize using bilinear interpolation
+        video_resized = torch.nn.functional.interpolate(
+            video_flat,
+            size=(target_size, target_size),
+            mode='bilinear',
+            align_corners=False
+        )
+
+        # Reshape back to [B, T, C, H, W]
+        video_resized = video_resized.reshape(B, T, C, target_size, target_size)
+
+        return video_resized
+
     def forward(
         self,
         video: torch.Tensor,
@@ -220,6 +258,9 @@ class UniversalVisualEncoder(nn.Module):
             raise ValueError(f"Unexpected video shape: {video.shape}")
 
         B, T, C, H, W = video.shape
+
+        # Resize to expected size for backbone
+        video = self._resize_video(video, self.expected_size)
 
         # Extract backbone features
         backbone_features = self._extract_backbone_features(video)

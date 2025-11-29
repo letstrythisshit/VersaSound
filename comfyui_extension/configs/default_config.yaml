@@ -6,6 +6,7 @@ visual_encoder:
   backbone_name: "videomae_base"  # videomae_base, videomae_large, internvideo
   backbone_dim: 768
   output_dim: 768
+  input_size: 224  # Input resolution for backbone (will auto-resize to this)
   num_heads: 12
   num_temporal_layers: 4
   freeze_backbone: true
