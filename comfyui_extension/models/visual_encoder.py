@@ -83,7 +83,7 @@ class UniversalVisualEncoder(nn.Module):
         if audio_cue_config.get('enabled', True):
             self.audio_cue_extractor = AudioCueExtractor(
                 visual_dim=self.output_dim,
-                motion_dim=motion_config.get('hidden_dim', 256),
+                motion_dim=self.motion_encoder.output_dim,
                 hidden_dim=audio_cue_config.get('hidden_dim', 512)
             )
         else:
