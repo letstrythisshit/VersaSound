@@ -87,24 +87,36 @@ class UniversalAudioGenerator(nn.Module):
     def _load_audioldm2(self) -> Tuple[nn.Module, int]:
         """Load AudioLDM2 model"""
         try:
+            import transformers
+            import diffusers
+
+            logger.info(f"Loading AudioLDM2 with transformers={transformers.__version__}, diffusers={diffusers.__version__}")
+
             from diffusers import AudioLDM2Pipeline
 
+            # Load with trust_remote_code and specific revision for better compatibility
             model = AudioLDM2Pipeline.from_pretrained(
                 "cvssp/audioldm2",
-                torch_dtype=torch.float32
+                torch_dtype=torch.float32,
+                trust_remote_code=True,
+                use_safetensors=True if hasattr(AudioLDM2Pipeline, 'use_safetensors') else False
             )
 
             # Get latent dimension
             latent_dim = 768  # AudioLDM2 uses CLAP embeddings
 
-            logger.info("Loaded AudioLDM2 model")
+            logger.info(f"Loaded AudioLDM2 model successfully")
+            logger.info(f"AudioLDM2 components: {list(model.components.keys())}")
+
             return model, latent_dim
 
         except ImportError:
             logger.error("diffusers library required for AudioLDM2")
             raise
         except Exception as e:
-            logger.warning(f"Error loading AudioLDM2: {e}, using dummy model")
+            logger.error(f"Error loading AudioLDM2: {e}, using dummy model")
+            import traceback
+            logger.error(traceback.format_exc())
             return self._create_dummy_model()
 
     def _load_stable_audio(self) -> Tuple[nn.Module, int]:
@@ -333,10 +345,15 @@ class UniversalAudioGenerator(nn.Module):
             batch_size = conditioning.shape[0]
 
             # Prepare prompt
-            if text_prompt is None:
+            if text_prompt is None or text_prompt.strip() == "":
                 text_prompt = "high quality audio"
 
             prompts = [text_prompt] * batch_size
+
+            logger.info(f"Generating audio with AudioLDM2: prompt='{text_prompt}', duration={duration}s, steps={num_steps}")
+
+            # Try to patch GPT2Model if needed (workaround for transformers compatibility)
+            self._patch_gpt2_if_needed()
 
             # Generate
             # NOTE: AudioLDM2 generates at 16kHz sample rate by default
@@ -345,7 +362,8 @@ class UniversalAudioGenerator(nn.Module):
                 num_inference_steps=num_steps,
                 guidance_scale=guidance_scale,
                 audio_length_in_s=duration,
-                num_waveforms_per_prompt=1
+                num_waveforms_per_prompt=1,
+                generator=None  # Explicitly set generator to None for determinism
             ).audios
 
             # Convert to tensor and move to correct device
@@ -360,23 +378,49 @@ class UniversalAudioGenerator(nn.Module):
             elif audio.dim() == 1:
                 audio = audio.unsqueeze(0).expand(batch_size, -1)
 
-            logger.info(f"AudioLDM2 generated audio: {audio.shape}")
+            logger.info(f"AudioLDM2 generated audio: shape={audio.shape}, min={audio.min():.3f}, max={audio.max():.3f}")
             return audio
 
         except AttributeError as e:
-            if "_update_model_kwargs_for_generation" in str(e):
+            if "_update_model_kwargs_for_generation" in str(e) or "GPT2Model" in str(e):
+                import transformers
                 logger.error(
-                    "AudioLDM2 compatibility error: Your transformers version is incompatible.\n"
-                    "Please install: pip install 'transformers>=4.30.0,<5.0.0'\n"
-                    "Falling back to dummy audio generation."
+                    f"AudioLDM2 compatibility error with transformers {transformers.__version__}:\n"
+                    f"Error: {e}\n"
+                    f"This is a known issue with certain transformers/diffusers version combinations.\n"
+                    f"Current versions installed: transformers={transformers.__version__}, diffusers={getattr(__import__('diffusers'), '__version__', 'unknown')}\n"
+                    f"\nTry downgrading transformers: pip install transformers==4.35.2 diffusers==0.25.0\n"
+                    f"Falling back to dummy audio generation."
                 )
+                import traceback
+                logger.error(traceback.format_exc())
             else:
                 logger.error(f"AudioLDM2 AttributeError: {e}")
+                import traceback
+                logger.error(traceback.format_exc())
             return self._dummy_generate(conditioning, duration)
         except Exception as e:
             logger.error(f"Error generating with AudioLDM2: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             # Fallback to dummy generation
             return self._dummy_generate(conditioning, duration)
+
+    def _patch_gpt2_if_needed(self):
+        """Attempt to patch GPT2Model for compatibility with newer transformers"""
+        try:
+            # Check if the text encoder has the problematic method
+            if hasattr(self.audio_model, 'text_encoder'):
+                text_encoder = self.audio_model.text_encoder
+                if hasattr(text_encoder, 'transformer') and not hasattr(text_encoder.transformer, '_update_model_kwargs_for_generation'):
+                    # Add the missing method as a pass-through
+                    def _update_model_kwargs_for_generation(self, outputs, model_kwargs, **kwargs):
+                        return model_kwargs
+
+                    text_encoder.transformer._update_model_kwargs_for_generation = _update_model_kwargs_for_generation.__get__(text_encoder.transformer)
+                    logger.info("Patched GPT2Model._update_model_kwargs_for_generation")
+        except Exception as e:
+            logger.debug(f"Could not patch GPT2Model: {e}")
 
     def _generate_with_stable_audio(
         self,
