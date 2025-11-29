@@ -153,11 +153,28 @@ class VisualFeatureExtractor:
             video_tensor = video_tensor.to(self.device)
 
             # Extract features
+            logger.info(f"=== Starting Visual Feature Extraction ===")
+            logger.info(f"Input: {video_tensor.shape} on {video_tensor.device}")
+
             with torch.no_grad():
                 features_dict = self.model(
                     video_tensor,
                     return_intermediates=False
                 )
+
+            logger.info(f"=== Feature Extraction Complete ===")
+            logger.info(f"Backbone features: {features_dict['backbone'].shape} (VideoMAE output)")
+            logger.info(f"Motion features: {features_dict['motion'].shape} (Optical flow-based)")
+            logger.info(f"Temporal features: {features_dict['temporal'].shape} (After transformer)")
+
+            # Log audio cues if available
+            if 'audio_cues' in features_dict and features_dict['audio_cues']:
+                logger.info(f"Audio cues extracted:")
+                for cue_name, cue_value in features_dict['audio_cues'].items():
+                    if isinstance(cue_value, torch.Tensor):
+                        logger.info(f"  - {cue_name}: {cue_value.shape}, range=[{cue_value.min():.3f}, {cue_value.max():.3f}]")
+                    else:
+                        logger.info(f"  - {cue_name}: {cue_value}")
 
             # Create VisualFeatures object
             visual_features = VisualFeatures(
@@ -174,7 +191,8 @@ class VisualFeatureExtractor:
                 }
             )
 
-            logger.info(f"Extracted visual features: {visual_features}")
+            logger.info(f"Created VisualFeatures: duration={visual_features.metadata['duration']:.2f}s, fps={fps}, frames={visual_features.metadata['num_frames']}")
+            logger.info(f"====================================")
 
             return (visual_features,)
 
@@ -200,7 +218,7 @@ class AudioGenerator:
                 "text_prompt": ("STRING", {"multiline": True, "default": ""}),
                 "negative_prompt": ("STRING", {"multiline": True, "default": ""}),
                 "duration_override": ("FLOAT", {"default": -1.0}),  # -1 = use video duration
-                "sample_rate": ("INT", {"default": 48000}),
+                "sample_rate": ("INT", {"default": 16000, "min": 8000, "max": 48000, "step": 1000}),
                 "guidance_scale": ("FLOAT", {"default": 7.5, "min": 1.0, "max": 20.0}),
                 "num_inference_steps": ("INT", {"default": 50, "min": 10, "max": 200}),
                 "seed": ("INT", {"default": -1}),

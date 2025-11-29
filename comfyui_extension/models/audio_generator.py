@@ -324,10 +324,16 @@ class UniversalAudioGenerator(nn.Module):
             # Dummy model
             audio = self.audio_model(audio_conditioning, duration)
 
+        # Detect source sample rate from audio length
+        source_sr = int(audio.shape[-1] / duration)
+        logger.info(f"Generated audio: {audio.shape[-1]} samples for {duration:.2f}s = ~{source_sr}Hz")
+
         # Ensure correct sample rate
-        if audio.shape[-1] != int(duration * sample_rate):
-            # Resample if needed
-            audio = self._resample_audio(audio, duration, sample_rate)
+        if source_sr != sample_rate:
+            logger.info(f"Resampling from {source_sr}Hz to {sample_rate}Hz...")
+            audio = self._resample_audio(audio, source_sr, sample_rate)
+        else:
+            logger.info(f"Audio already at target sample rate {sample_rate}Hz")
 
         return audio
 
@@ -501,27 +507,59 @@ class UniversalAudioGenerator(nn.Module):
     def _resample_audio(
         self,
         audio: torch.Tensor,
-        duration: float,
+        source_sr: int,
         target_sr: int
     ) -> torch.Tensor:
-        """Resample audio to target sample rate"""
-        target_length = int(duration * target_sr)
+        """
+        Resample audio from source sample rate to target sample rate
 
-        if audio.shape[-1] == target_length:
+        Args:
+            audio: Audio tensor [B, samples] at source_sr
+            source_sr: Source sample rate (e.g., 16000 for AudioLDM2)
+            target_sr: Target sample rate (e.g., 48000)
+
+        Returns:
+            Resampled audio [B, target_samples]
+        """
+        if source_sr == target_sr:
             return audio
 
         # Ensure audio is 2D [B, samples]
         if audio.dim() == 1:
             audio = audio.unsqueeze(0)
 
-        # Simple linear interpolation
-        # interpolate expects [B, C, samples], so unsqueeze to add channel dim
-        audio_resampled = torch.nn.functional.interpolate(
-            audio.unsqueeze(1),  # [B, 1, samples]
-            size=target_length,
-            mode='linear',
-            align_corners=False
-        ).squeeze(1)  # [B, samples]
+        # Calculate target length based on sample rate ratio
+        source_length = audio.shape[-1]
+        target_length = int(source_length * target_sr / source_sr)
+
+        logger.debug(f"Resampling: {source_length} samples @ {source_sr}Hz → {target_length} samples @ {target_sr}Hz")
+
+        # Use high-quality resampling if torchaudio is available
+        try:
+            import torchaudio.transforms as T
+
+            # Create resampler
+            resampler = T.Resample(
+                orig_freq=source_sr,
+                new_freq=target_sr,
+                resampling_method='sinc_interp_kaiser'
+            ).to(audio.device)
+
+            # Resample each batch item
+            audio_resampled = resampler(audio)
+            logger.debug(f"Used torchaudio sinc_interp_kaiser resampling")
+
+        except ImportError:
+            # Fallback to linear interpolation if torchaudio not available
+            logger.warning("torchaudio not available, using linear interpolation (lower quality)")
+
+            # interpolate expects [B, C, samples], so unsqueeze to add channel dim
+            audio_resampled = torch.nn.functional.interpolate(
+                audio.unsqueeze(1),  # [B, 1, samples]
+                size=target_length,
+                mode='linear',
+                align_corners=False
+            ).squeeze(1)  # [B, samples]
 
         return audio_resampled
 
