@@ -339,6 +339,7 @@ class UniversalAudioGenerator(nn.Module):
             prompts = [text_prompt] * batch_size
 
             # Generate
+            # NOTE: AudioLDM2 generates at 16kHz sample rate by default
             audio_arrays = self.audio_model(
                 prompt=prompts,
                 num_inference_steps=num_steps,
@@ -347,12 +348,17 @@ class UniversalAudioGenerator(nn.Module):
                 num_waveforms_per_prompt=1
             ).audios
 
-            # Convert to tensor
-            audio = torch.from_numpy(audio_arrays).float()
+            # Convert to tensor and move to correct device
+            audio = torch.from_numpy(audio_arrays).float().to(conditioning.device)
 
             # Reshape to [B, samples]
             if audio.dim() == 3:
                 audio = audio.squeeze(1)
+            elif audio.dim() == 2 and batch_size == 1:
+                # audio_arrays might be [1, samples] or [samples]
+                pass
+            elif audio.dim() == 1:
+                audio = audio.unsqueeze(0).expand(batch_size, -1)
 
             return audio
 
@@ -415,13 +421,18 @@ class UniversalAudioGenerator(nn.Module):
         if audio.shape[-1] == target_length:
             return audio
 
+        # Ensure audio is 2D [B, samples]
+        if audio.dim() == 1:
+            audio = audio.unsqueeze(0)
+
         # Simple linear interpolation
+        # interpolate expects [B, C, samples], so unsqueeze to add channel dim
         audio_resampled = torch.nn.functional.interpolate(
-            audio.unsqueeze(1),
+            audio.unsqueeze(1),  # [B, 1, samples]
             size=target_length,
             mode='linear',
             align_corners=False
-        ).squeeze(1)
+        ).squeeze(1)  # [B, samples]
 
         return audio_resampled
 
@@ -441,12 +452,12 @@ class VisualToAudioAdapter(nn.Module):
         super().__init__()
 
         self.visual_dim = visual_dim
+        self.audio_latent_dim = audio_latent_dim
 
-        # Motion fusion projection (projects concatenated temporal+motion back to visual_dim)
-        # This is used when motion features are available
-        # Input: visual_dim + motion_dim, Output: visual_dim
-        # We'll initialize this to handle up to visual_dim*2 to be safe
-        self.motion_fusion = nn.Linear(visual_dim * 2, visual_dim)
+        # Motion fusion projection (lazy initialization on first forward pass)
+        # This projects concatenated temporal+motion features back to visual_dim
+        # We don't know motion_dim at init time, so we create this lazily
+        self.motion_fusion = None
 
         # Input projection
         self.input_proj = nn.Linear(visual_dim, audio_latent_dim)
@@ -487,6 +498,13 @@ class VisualToAudioAdapter(nn.Module):
         if motion is not None:
             # Combine via concatenation and learned projection
             combined = torch.cat([temporal, motion], dim=-1)
+
+            # Lazy initialization of motion_fusion layer
+            if self.motion_fusion is None:
+                combined_dim = combined.shape[-1]
+                self.motion_fusion = nn.Linear(combined_dim, self.visual_dim).to(combined.device)
+                logger.debug(f"Lazy initialized motion_fusion: {combined_dim} -> {self.visual_dim}")
+
             # Project back to visual_dim using learned weights
             combined = self.motion_fusion(combined)
         else:
