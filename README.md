@@ -97,12 +97,16 @@ pip install -r requirements.txt
 
 **Cause**: Incompatible versions of `transformers` and `diffusers` libraries.
 
-**Solution**: Install compatible versions:
+**Solution**: Install the tested working versions:
 ```bash
-pip install 'transformers>=4.30.0,<5.0.0' 'diffusers>=0.25.0,<0.32.0'
+pip install transformers==4.35.2 diffusers==0.25.0
 ```
 
-**Note**: Transformers 5.x has breaking changes in the generation API that are incompatible with AudioLDM2. Always use transformers 4.x.
+**Important Notes**:
+- Transformers 5.x has breaking changes that are incompatible with AudioLDM2
+- Some transformers 4.x versions also have compatibility issues
+- **The combination transformers 4.35.2 + diffusers 0.25.0 is tested and working**
+- After installing, **restart ComfyUI completely** (not just refresh)
 
 ### No Audio Output / Silent Audio
 
